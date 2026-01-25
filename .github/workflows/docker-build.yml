@@ -4,9 +4,9 @@ on:
   push:
     branches:
       - master  # 主分支提交时触发
-#  pull_request:
-#    branches:
-#      - master  # 向主分支发起PR时触发
+  pull_request:
+    branches:
+      - master  # 向主分支发起PR时触发
 
 jobs:
   build:
@@ -58,6 +58,7 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/ai-langchain4j  # 可选
           tags: |
             type=ref,event=branch
+            type=ref,event=pr
             type=sha,format=short
 
       - name: Build and push Docker image
@@ -67,9 +68,41 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64  # 多架构支持
-          push: ${{ github.event_name != 'pull_request' }}  # PR时不推送
+          # push: ${{ github.event_name != 'pull_request' }}  # PR时不推送
+          push: true  # 允许在PR时也推送镜像，配合上方 tags: type=ref,event=pr 使用
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' # 仅在 master 推送时部署，PR 不部署
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.VPS_USERNAME }} 
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.PORT || 22 }}
+          script: |
+            # 停止并删除旧容器
+            docker stop ai-langchain4j || true
+            docker rm ai-langchain4j || true
+            
+            # 拉取最新镜像 (假设 master 分支对应 master tag)
+            docker pull tianyaqpzm/ai-langchain4j:master
+            
+            # 启动新容器
+            docker run -d \
+              --name ai-langchain4j \
+              --restart unless-stopped \
+              -p 8081:8080 \
+              -e TZ=Asia/Shanghai \
+              tianyaqpzm/ai-langchain4j:master
+            
+            # 清理无用镜像
+            docker image prune -f

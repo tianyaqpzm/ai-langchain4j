@@ -1,4 +1,6 @@
+# ==========================================
 # 第一阶段：构建应用
+# ==========================================
 FROM amazoncorretto:17-alpine3.17 AS build
 
 # 安装 Maven
@@ -10,16 +12,31 @@ WORKDIR /app
 COPY pom.xml .
 RUN mvn dependency:go-offline -B
 
-# 复制源代码并构建 相当于把代码目录src下文件拷贝到 /app/src下
+# 复制源代码并构建
 COPY src ./src
 RUN mvn clean package -DskipTests
 
-# 第二阶段：运行应用
-FROM gcr.io/distroless/java17-debian11 AS runtime
+# ==========================================
+# 第二阶段：运行应用 (改用带 Shell 的镜像)
+# ==========================================
+# ⚠️ 关键修改：放弃 distroless，改用 eclipse-temurin 以支持 Shell 脚本
+FROM eclipse-temurin:17-jre 
+
 WORKDIR /app
 
-# 从构建阶段复制应用
-COPY --from=build /app/target/ai-langchain4j*.jar ai-langchain4j.jar
+# 1. 创建非 root 用户 (eclipse-temurin 默认通常有 user 1000，为了安全显式创建)
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+
+# 2. 从构建阶段复制 jar 包
+COPY --from=build /app/target/ai-langchain4j*.jar /app/ai-langchain4j.jar
+
+# 3. 复制并设置 entrypoint.sh
+COPY entrypoint.sh /app/entrypoint.sh
+
+# 4. 赋予执行权限 (同时处理可能的 Windows 换行符问题)
+# 如果没有 dos2unix，可以用 sed 替换
+RUN chmod +x /app/entrypoint.sh && \
+    sed -i 's/\r$//' /app/entrypoint.sh
 
 # 设置环境变量
 ENV JAVA_OPTS="-Xmx512m -Xms256m -XX:+UseG1GC -XX:MaxMetaspaceSize=128m -XX:+HeapDumpOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom"
@@ -28,30 +45,16 @@ ENV APP_PORT=8080
 # 声明端口
 EXPOSE $APP_PORT
 
-# 添加健康检查（根据应用调整URL）
+# 5. 健康检查 (Eclipse Temurin 带有 curl，可以直接用)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD [ "curl", "-f", "http://localhost:${APP_PORT}/actuator/health" ] || exit 1
+  CMD curl -f http://localhost:${APP_PORT}/actuator/health || exit 1
 
+# 切换到非 root 用户
+USER appuser
 
-# 或者使用条件判断的方式
-RUN if [ ! -d "/usr/local/bin" ]; then \
-        mkdir /usr/local/bin; \
-        echo "已创建/external目录"; \
-    else \
-        echo "/usr/local/bin目录已存在"; \
-    fi
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN ls -la /usr/local/bin/       # 显示目录内容
-# 检查关键文件是否存在
-RUN if [ ! -f "/usr/local/bin/entrypoint.sh" ]; then \
-        echo "错误: /usr/local/bin/entrypoint.sh 文件不存在!"; \
-    fi
-# 赋予执行权限
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# 6. 设置启动命令
+# ENTRYPOINT 指向脚本
+ENTRYPOINT ["/app/entrypoint.sh"]
 
-# 非root用户运行
-USER nonroot:nonroot
-
-# 启动应用
-ENTRYPOINT ["/usr/local/entrypoint.sh"]
-CMD ["java", $JAVA_OPTS, "-jar", "/app/ai-langchain4j.jar"]
+# CMD 作为参数传给 ENTRYPOINT 中的 "$@"
+CMD ["sh", "-c", "java $JAVA_OPTS -jar /app/ai-langchain4j.jar"]
