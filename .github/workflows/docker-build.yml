@@ -75,3 +75,34 @@ jobs:
 
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' # 仅在 master 推送时部署，PR 不部署
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.VPS_USERNAME }} 
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.PORT || 22 }}
+          script: |
+            # 停止并删除旧容器
+            docker stop ai-langchain4j || true
+            docker rm ai-langchain4j || true
+            
+            # 拉取最新镜像 (假设 master 分支对应 master tag)
+            docker pull tianyaqpzm/ai-langchain4j:master
+            
+            # 启动新容器
+            docker run -d \
+              --name ai-langchain4j \
+              --restart unless-stopped \
+              -p 8081:8080 \
+              -e TZ=Asia/Shanghai \
+              tianyaqpzm/ai-langchain4j:master
+            
+            # 清理无用镜像
+            docker image prune -f
