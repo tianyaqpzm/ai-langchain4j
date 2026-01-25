@@ -4,9 +4,9 @@ on:
   push:
     branches:
       - master  # 主分支提交时触发
-  pull_request:
-    branches:
-      - master  # 向主分支发起PR时触发
+  # pull_request:
+  #   branches:
+  #     - master  # 向主分支发起PR时触发
 
 jobs:
   build:
@@ -68,8 +68,8 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64  # 多架构支持
-          # push: ${{ github.event_name != 'pull_request' }}  # PR时不推送
-          push: true  # 允许在PR时也推送镜像，配合上方 tags: type=ref,event=pr 使用
+          push: ${{ github.event_name != 'pull_request' }}  # PR时不推送
+          # push: true  # 允许在PR时也推送镜像，配合上方 tags: type=ref,event=pr 使用
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
@@ -102,6 +102,9 @@ jobs:
               --restart unless-stopped \
               -p 8081:8080 \
               -e TZ=Asia/Shanghai \
+              -e DASH_SCOPE_API_KEY=${{ secrets.DASH_SCOPE_API_KEY }} \
+              -e MONGODB_PWD=${{ secrets.MONGODB_PWD }} \
+              -e MONGODB_USER=${{ secrets.MONGODB_USER }} \
               tianyaqpzm/ai-langchain4j:master
             
             # 清理无用镜像
