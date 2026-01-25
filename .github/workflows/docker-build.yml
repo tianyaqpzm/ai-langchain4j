@@ -58,6 +58,7 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/ai-langchain4j  # 可选
           tags: |
             type=ref,event=branch
+            type=ref,event=pr
             type=sha,format=short
 
       - name: Build and push Docker image
@@ -67,7 +68,8 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64  # 多架构支持
-          push: ${{ github.event_name != 'pull_request' }}  # PR时不推送
+          # push: ${{ github.event_name != 'pull_request' }}  # PR时不推送
+          push: true  # 允许在PR时也推送镜像，配合上方 tags: type=ref,event=pr 使用
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
