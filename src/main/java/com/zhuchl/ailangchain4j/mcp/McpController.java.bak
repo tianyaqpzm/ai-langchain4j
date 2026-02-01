@@ -1,0 +1,143 @@
+package com.zhuchl.ailangchain4j.mcp;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+// 1. 定义简单的 DTO 用于接收和发送 JSON-RPC
+record JsonRpcRequest(String jsonrpc, Object id, String method, Map<String, Object> params) {
+}
+
+record JsonRpcResponse(String jsonrpc, Object id, Object result) {
+}
+
+@RestController
+@RequestMapping("/mcp")
+public class McpController {
+
+    // 存储会话，Key 是 SessionID
+    private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
+
+    /**
+     * 第一步：SSE 握手端点
+     * Python Client 连接这里建立长连接
+     */
+    @GetMapping(path = "/sse", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter subscribe() {
+        SseEmitter emitter = new SseEmitter(Long.MAX_VALUE); // 无限超时
+        String sessionId = UUID.randomUUID().toString();
+
+        emitters.put(sessionId, emitter);
+
+        // 清理回调
+        Runnable cleanup = () -> {
+            emitters.remove(sessionId);
+            System.out.println("❌ 连接断开: " + sessionId);
+        };
+        emitter.onCompletion(cleanup);
+        emitter.onTimeout(cleanup);
+        emitter.onError((e) -> cleanup.run());
+
+        // 🔥 关键点：连接建立后，立刻告知 Python 往哪里发消息
+        try {
+            // 事件名必须是 "endpoint"
+            String postEndpoint = "/mcp/messages?sessionId=" + sessionId;
+            emitter.send(SseEmitter.event().name("endpoint").data(postEndpoint));
+            System.out.println("✅ Python Client 已连接, Session: " + sessionId);
+        } catch (IOException e) {
+            emitter.completeWithError(e);
+        }
+
+        return emitter;
+    }
+
+    /**
+     * 第二步：消息处理端点
+     * Python Client 通过 POST 发送指令到这里
+     */
+    @PostMapping("/messages")
+    public void handleMessage(@RequestParam String sessionId, @RequestBody JsonRpcRequest request) {
+        SseEmitter emitter = emitters.get(sessionId);
+        if (emitter == null) {
+            System.out.println("⚠️ 收到消息但找不到 Session: " + sessionId);
+            return;
+        }
+
+        try {
+            System.out.println("📩 收到指令 [" + request.method() + "] Session: " + sessionId);
+            Object result = null;
+
+            // --- 1. 处理初始化 (initialize) ---
+            if ("initialize".equals(request.method())) {
+                result = Map.of(
+                        "protocolVersion", "2024-11-05",
+                        "capabilities", Map.of("tools", Map.of()), // 声明我有工具能力
+                        "serverInfo", Map.of("name", "SpringJavaAgent", "version", "1.0"));
+            }
+
+            // --- 2. 处理工具列表查询 (tools/list) ---
+            else if ("tools/list".equals(request.method())) {
+                result = Map.of(
+                        "tools", List.of(
+                                Map.of(
+                                        "name", "query_order",
+                                        "description", "根据订单ID查询状态",
+                                        "inputSchema", Map.of(
+                                                "type", "object",
+                                                "properties", Map.of(
+                                                        "orderId", Map.of("type", "string", "description", "订单编号")),
+                                                "required", List.of("orderId")))));
+            }
+
+            // --- 3. 处理具体的工具调用 (tools/call) ---
+            else if ("tools/call".equals(request.method())) {
+                String toolName = (String) request.params().get("name");
+                Map<String, Object> args = (Map<String, Object>) request.params().get("arguments");
+
+                System.out.println("🔨 执行工具: " + toolName + " 参数: " + args);
+
+                if ("query_order".equals(toolName)) {
+                    String orderId = (String) args.get("orderId");
+                    // 模拟业务逻辑返回
+                    String businessData = "订单 " + orderId + " 状态正常，已发货。";
+
+                    // MCP 规定的 content 结构
+                    result = Map.of(
+                            "content", List.of(
+                                    Map.of("type", "text", "text", businessData)));
+                } else {
+                    throw new RuntimeException("未知工具: " + toolName);
+                }
+            }
+
+            // --- 4. 处理初始化完成通知 (notifications/initialized) ---
+            else if ("notifications/initialized".equals(request.method())) {
+                // 这是一个通知，不需要回执
+                return;
+            }
+
+            // --- 发送响应回 Python (通过 SSE) ---
+            if (request.id() != null) { // 只有非通知类的请求才需要回复
+                JsonRpcResponse response = new JsonRpcResponse("2.0", request.id(), result);
+
+                // 事件名必须是 "message"
+                emitter.send(SseEmitter.event().name("message").data(response));
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            // 发送错误回执 (可选)
+        }
+    }
+}

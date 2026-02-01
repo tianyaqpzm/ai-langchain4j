@@ -1,0 +1,77 @@
+spring:
+  profiles:
+    active: ${ENV_TYPE:prod}
+  application:
+    name: ai-langchain4j
+  # Spring Cloud Alibaba Nacos
+  cloud:
+    nacos:
+      # --- 全局配置 (推荐) ---
+      server-addr: ${NACOS_SERVER_ADDR}
+      username: ${NACOS_USERNAME}
+      password: ${NACOS_PASSWORD}  # 如果密码纯数字或有特殊符号，建议加上单引号 'nacos'
+      # 下面这两个模块会自动继承上面的全局账号密码
+      discovery:
+        namespace: ${NACOS_NAMESPACE}
+      config:
+        namespace: ${NACOS_NAMESPACE}
+  # MongoDB
+  data:
+    mongodb:
+      uri: mongodb://${MONGODB_USER}:${MONGODB_PWD}@${MONGODB_ADDR}/chat_memory_db?tls=false&ssl=false&authSource=admin&directConnection=true
+
+server:
+  port: ${PORT:8080}
+
+logging:
+  level:
+    root: info
+
+langchain4j:
+  # --- OpenAI Chat Model (已注释) ---
+  # open-ai:
+  #   chat-model:
+  #     base-url: http://langchain4j.dev/demo/openai/v1
+  #     api-key: demo
+  #     model-name: gpt-4o-mini
+  
+  open-ai:
+    chat-model:
+      # 开启请求与响应日志
+      log-requests: true
+      log-responses: true
+    
+    # OpenAI Embedding (for RAG)
+    embedding-model:
+      base-url: ${EMBEDDING_MODEL_URL:http://langchain4j.dev/demo/openai/v1}
+      api-key: ${EMBEDDING_MODEL_APIKEY}
+      model-name: ${EMBEDDING_MODEL_NAME:text-embedding-3-small}
+
+  # --- Ollama (已注释) ---
+  # ollama:
+  #   chat-model:
+  #     base-url: http://192.168.31.201:11434
+  #     model-name: qwen3:latest
+  #     log-requests: true
+  #     log-responses: true
+
+  community:
+    dashscope:
+      chat-model:
+        # 参考文档: https://bailian.console.aliyun.com/?productCode=p_efm&tab=model#/model-market/detail/qwen3?modelGroup=qwen3
+        api-key: ${DASH_SCOPE_API_KEY}
+        # 有效期至 2025-10-26 (tianyaqpzm)
+        model-name: ${CHAT_MODEL_NAME:qwen-plus-2025-04-28}
+
+  # PgVector
+  vector-store:
+    pgvector:
+      host: ${PG_HOST}
+      port: ${PG_PORT:5433}
+      user: ${PG_USER}
+      password: ${PG_PWD}
+      database: ${PG_DB:postgres}
+      table: ${PG_TABLE:embeddings}
+      dimension: 1536
+      use-index: false
+      index-list-size: 100
