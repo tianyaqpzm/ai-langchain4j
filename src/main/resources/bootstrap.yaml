@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: ai-langchain4j
+  profiles:
+    active: ${ENV_TYPE:prod}
+  cloud:
+    nacos:
+      # --- Nacos 连接配置 (从环境变量读取) ---
+      server-addr: ${NACOS_SERVER_ADDR}
+      username: ${NACOS_USERNAME}
+      password: ${NACOS_PASSWORD}
+      # --- 配置中心 ---
+      config:
+        namespace: ${NACOS_NAMESPACE}
+        file-extension: yaml
+        # 可选: 共享配置
+        # shared-configs:
+        #   - data-id: common.yaml
+        #     refresh: true
+      # --- 服务发现 ---
+      discovery:
+        namespace: ${NACOS_NAMESPACE}

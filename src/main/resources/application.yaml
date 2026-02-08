@@ -1,25 +1,3 @@
-spring:
-  profiles:
-    active: ${ENV_TYPE:prod}
-  application:
-    name: ai-langchain4j
-  # Spring Cloud Alibaba Nacos
-  cloud:
-    nacos:
-      # --- 全局配置 (推荐) ---
-      server-addr: ${NACOS_SERVER_ADDR}
-      username: ${NACOS_USERNAME}
-      password: ${NACOS_PASSWORD}  # 如果密码纯数字或有特殊符号，建议加上单引号 'nacos'
-      # 下面这两个模块会自动继承上面的全局账号密码
-      discovery:
-        namespace: ${NACOS_NAMESPACE}
-      config:
-        namespace: ${NACOS_NAMESPACE}
-  # MongoDB
-  data:
-    mongodb:
-      uri: mongodb://${MONGODB_USER}:${MONGODB_PWD}@${MONGODB_ADDR}/chat_memory_db?tls=false&ssl=false&authSource=admin&directConnection=true
-
 server:
   port: ${PORT:8080}
 
@@ -27,24 +5,31 @@ logging:
   level:
     root: info
 
+# 以下配置可被 Nacos 配置中心覆盖
+# Nacos Data ID: ai-langchain4j-prod.yaml (或根据 profile 变化)
+
+spring:
+  # MongoDB - 将在 Nacos 配置中心配置
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/chat_memory_db}
+  # PostgreSQL - 将在 Nacos 配置中心配置
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: ${PG_URL:jdbc:postgresql://localhost:5432/postgres}
+    username: ${PG_USER:postgres}
+    password: ${PG_PWD:postgres}
+
 langchain4j:
-  # --- OpenAI Chat Model (已注释) ---
-  # open-ai:
-  #   chat-model:
-  #     base-url: http://langchain4j.dev/demo/openai/v1
-  #     api-key: demo
-  #     model-name: gpt-4o-mini
-  
   open-ai:
     chat-model:
       # 开启请求与响应日志
       log-requests: true
       log-responses: true
-    
-    # OpenAI Embedding (for RAG)
+    # Embedding Model - 将在 Nacos 配置中心配置
     embedding-model:
       base-url: ${EMBEDDING_MODEL_URL:http://langchain4j.dev/demo/openai/v1}
-      api-key: ${EMBEDDING_MODEL_APIKEY}
+      api-key: ${EMBEDDING_MODEL_APIKEY:demo}
       model-name: ${EMBEDDING_MODEL_NAME:text-embedding-3-small}
 
   # --- Ollama (已注释) ---
@@ -63,13 +48,13 @@ langchain4j:
         # 有效期至 2025-10-26 (tianyaqpzm)
         model-name: ${CHAT_MODEL_NAME:qwen-plus-2025-04-28}
 
-  # PgVector
+  # PgVector - 将在 Nacos 配置中心配置
   vector-store:
     pgvector:
-      host: ${PG_HOST}
-      port: ${PG_PORT:5433}
-      user: ${PG_USER}
-      password: ${PG_PWD}
+      host: ${PG_HOST:localhost}
+      port: ${PG_PORT:5432}
+      user: ${PG_USER:postgres}
+      password: ${PG_PWD:postgres}
       database: ${PG_DB:postgres}
       table: ${PG_TABLE:embeddings}
       dimension: 1536
