@@ -84,10 +84,10 @@ jobs:
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.HOST }}
+          host: ${{ vars.HOST }}
           username: ${{ secrets.VPS_USERNAME }} 
           password: ${{ secrets.VPS_PASSWORD }}
-          port: ${{ secrets.PORT || 22 }}
+          port: ${{ vars.PORT || 22 }}
           script: |
             # 停止并删除旧容器
             docker stop ai-langchain4j || true

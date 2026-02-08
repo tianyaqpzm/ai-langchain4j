@@ -5,6 +5,15 @@ set -e  # 命令失败时立即退出
 : "${APP_PORT:=8080}"       # 如果未设置 APP_PORT，则默认为 8080
 : "${LOG_LEVEL:=INFO}"     # 日志级别默认 INFO
 
+# Nacos 客户端 JVM 配置
+export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS} \
+  -Duser.home=/tmp \
+  -Djm.snapshot.path=/tmp/nacos \
+  -Dcom.alibaba.nacos.client.naming.cache.dir=/tmp/nacos \
+  -Dnacos.remote.client.grpc.channel.capability.negotiation.timeout=10000 \
+  -Dnacos.remote.client.grpc.server.check.timeout=10000 \
+  -Dnacos.remote.client.grpc.timeout=10000"
+
 # 输出环境信息
 echo "Starting application with PORT=$APP_PORT and LOG_LEVEL=$LOG_LEVEL"
 
