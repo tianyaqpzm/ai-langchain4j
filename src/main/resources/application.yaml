@@ -19,6 +19,12 @@ spring:
     url: ${PG_URL:jdbc:postgresql://localhost:5432/postgres}
     username: ${PG_USER:postgres}
     password: ${PG_PWD:postgres}
+  # Flyway 数据库迁移
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true  # 对已有数据库进行基线处理
+    validate-on-migrate: true
 
 langchain4j:
   open-ai:
