@@ -1,0 +1,62 @@
+server:
+  port: ${PORT:8080}
+
+logging:
+  level:
+    root: info
+
+# 以下配置可被 Nacos 配置中心覆盖
+# Nacos Data ID: ai-langchain4j-prod.yaml (或根据 profile 变化)
+
+spring:
+  # MongoDB - 将在 Nacos 配置中心配置
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/chat_memory_db}
+  # PostgreSQL - 将在 Nacos 配置中心配置
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: ${PG_URL:jdbc:postgresql://localhost:5432/postgres}
+    username: ${PG_USER:postgres}
+    password: ${PG_PWD:postgres}
+
+langchain4j:
+  open-ai:
+    chat-model:
+      # 开启请求与响应日志
+      log-requests: true
+      log-responses: true
+    # Embedding Model - 将在 Nacos 配置中心配置
+    embedding-model:
+      base-url: ${EMBEDDING_MODEL_URL:http://langchain4j.dev/demo/openai/v1}
+      api-key: ${EMBEDDING_MODEL_APIKEY:demo}
+      model-name: ${EMBEDDING_MODEL_NAME:text-embedding-3-small}
+
+  # --- Ollama (已注释) ---
+  # ollama:
+  #   chat-model:
+  #     base-url: http://192.168.31.201:11434
+  #     model-name: qwen3:latest
+  #     log-requests: true
+  #     log-responses: true
+
+  community:
+    dashscope:
+      chat-model:
+        # 参考文档: https://bailian.console.aliyun.com/?productCode=p_efm&tab=model#/model-market/detail/qwen3?modelGroup=qwen3
+        api-key: ${DASH_SCOPE_API_KEY}
+        # 有效期至 2025-10-26 (tianyaqpzm)
+        model-name: ${CHAT_MODEL_NAME:qwen-plus-2025-04-28}
+
+  # PgVector - 将在 Nacos 配置中心配置
+  vector-store:
+    pgvector:
+      host: ${PG_HOST:localhost}
+      port: ${PG_PORT:5432}
+      user: ${PG_USER:postgres}
+      password: ${PG_PWD:postgres}
+      database: ${PG_DB:postgres}
+      table: ${PG_TABLE:embeddings}
+      dimension: 1536
+      use-index: false
+      index-list-size: 100

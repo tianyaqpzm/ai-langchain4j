@@ -1,20 +1,21 @@
 package com.zhuchl.ailangchain4j.chatmemory;
 
+import java.util.Arrays;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+
 import com.zhuchl.ailangchain4j.assistant.Assistant;
 import com.zhuchl.ailangchain4j.assistant.MemoryChatAssistant;
 import com.zhuchl.ailangchain4j.assistant.SeparateChatAssistant;
-import com.zhuchl.ailangchain4j.config.MemoryChatAssitantConfig;
+
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.ollama.OllamaChatModel;
 import dev.langchain4j.service.AiServices;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-
-import java.util.Arrays;
 
 /**
  * @desc
@@ -33,14 +34,12 @@ public class ChatMemoryTest {
         AiMessage aiMessage1 = chatResponse1.aiMessage();
         System.out.println(aiMessage1.text());
 
-
         UserMessage userMessage2 = UserMessage.userMessage("你知道我是谁吗");
         ChatResponse chatResponse2 = ollamaChatModel.chat(Arrays.asList(userMessage1, aiMessage1, userMessage2));
         AiMessage aiMessage2 = chatResponse2.aiMessage();
         System.out.println(aiMessage2.text());
 
     }
-
 
     @Test
     public void test2() {
@@ -61,7 +60,6 @@ public class ChatMemoryTest {
 
     @Autowired
     MemoryChatAssistant memoryChatAssitant;
-
 
     @Test
     public void test3() {

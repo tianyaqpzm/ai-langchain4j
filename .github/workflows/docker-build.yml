@@ -95,16 +95,18 @@ jobs:
             
             # 拉取最新镜像 (假设 master 分支对应 master tag)
             docker pull tianyaqpzm/ai-langchain4j:master
-            
+            # 需提前创建docker内部网络: pei-network
             # 启动新容器
             docker run -d \
               --name ai-langchain4j \
               --restart unless-stopped \
-              -p 8081:8080 \
+              --network pei-network \
+              --expose 8080 \
               -e TZ=Asia/Shanghai \
-              -e DASH_SCOPE_API_KEY=${{ secrets.DASH_SCOPE_API_KEY }} \
-              -e MONGODB_PWD=${{ secrets.MONGODB_PWD }} \
-              -e MONGODB_USER=${{ secrets.MONGODB_USER }} \
+              -e NACOS_SERVER_ADDR=${{ vars.NACOS_SERVER_ADDR }} \
+              -e NACOS_NAMESPACE=${{ vars.NACOS_NAMESPACE }} \
+              -e NACOS_USERNAME=${{ secrets.NACOS_USERNAME }} \
+              -e NACOS_PASSWORD=${{ secrets.NACOS_PASSWORD }} \
               tianyaqpzm/ai-langchain4j:master
             
             # 清理无用镜像

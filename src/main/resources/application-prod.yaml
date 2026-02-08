@@ -1,0 +1,5 @@
+spring:
+  data:
+    # MongoDB
+    mongodb:
+      uri: mongodb://${MONGODB_USER}:${MONGODB_PWD}@${MONGODB_ADDR}/chat_memory_db?tls=false&ssl=false&authSource=admin&directConnection=true
