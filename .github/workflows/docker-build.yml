@@ -96,12 +96,14 @@ jobs:
             # 拉取最新镜像 (假设 master 分支对应 master tag)
             docker pull tianyaqpzm/ai-langchain4j:master
             # 需提前创建docker内部网络: pei-network
+            # host-gateway 是 Docker 的魔法词，自动指向宿主机内网 IP
             # 启动新容器
             docker run -d \
               --name ai-langchain4j \
               --restart unless-stopped \
               --network pei-network \
               --expose 8080 \
+              --add-host "pei.122577.xyz:host-gateway" \
               -e TZ=Asia/Shanghai \
               -e NACOS_SERVER_ADDR=${{ vars.NACOS_SERVER_ADDR }} \
               -e NACOS_NAMESPACE=${{ vars.NACOS_NAMESPACE }} \
