@@ -17,12 +17,18 @@ public class AiDevAgentProfilePO {
     private String modelName;
     private String avatar;
     private String systemPrompt;
+    @com.baomidou.mybatisplus.annotation.TableField("local_sync_path")
+    private String localSyncPath;
     private OffsetDateTime createTime;
     private OffsetDateTime updateTime;
+    private String agentType;
 
     // Getters and Setters
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
+
+    public String getLocalSyncPath() { return localSyncPath; }
+    public void setLocalSyncPath(String localSyncPath) { this.localSyncPath = localSyncPath; }
 
     public String getRoleName() { return roleName; }
     public void setRoleName(String roleName) { this.roleName = roleName; }
@@ -47,4 +53,7 @@ public class AiDevAgentProfilePO {
 
     public OffsetDateTime getUpdateTime() { return updateTime; }
     public void setUpdateTime(OffsetDateTime updateTime) { this.updateTime = updateTime; }
+
+    public String getAgentType() { return agentType; }
+    public void setAgentType(String agentType) { this.agentType = agentType; }
 }

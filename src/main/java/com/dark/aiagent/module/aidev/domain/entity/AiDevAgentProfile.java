@@ -12,12 +12,14 @@ public class AiDevAgentProfile {
     private String modelName;
     private String avatar;
     private String systemPrompt;
+    private String localSyncPath;
+    private String agentType;
     private OffsetDateTime createTime;
     private OffsetDateTime updateTime;
 
     private AiDevAgentProfile() {}
 
-    public AiDevAgentProfile(String id, String roleName, String baseUrl, String apiToken, String modelName, String avatar, String systemPrompt, OffsetDateTime createTime, OffsetDateTime updateTime) {
+    public AiDevAgentProfile(String id, String roleName, String baseUrl, String apiToken, String modelName, String avatar, String systemPrompt, String localSyncPath, String agentType, OffsetDateTime createTime, OffsetDateTime updateTime) {
         this.id = id;
         this.roleName = roleName;
         this.baseUrl = baseUrl;
@@ -25,16 +27,20 @@ public class AiDevAgentProfile {
         this.modelName = modelName;
         this.avatar = avatar;
         this.systemPrompt = systemPrompt;
+        this.localSyncPath = localSyncPath;
+        this.agentType = agentType;
         this.createTime = createTime;
         this.updateTime = updateTime;
     }
 
-    public void updateProfile(String baseUrl, String apiToken, String modelName, String avatar, String systemPrompt) {
+    public void updateProfile(String baseUrl, String apiToken, String modelName, String avatar, String systemPrompt, String localSyncPath, String agentType) {
         this.baseUrl = baseUrl;
         this.apiToken = apiToken;
         this.modelName = modelName;
         this.avatar = avatar;
         this.systemPrompt = systemPrompt;
+        this.localSyncPath = localSyncPath;
+        this.agentType = agentType;
         this.updateTime = OffsetDateTime.now();
     }
 
@@ -64,6 +70,14 @@ public class AiDevAgentProfile {
 
     public String getSystemPrompt() {
         return systemPrompt;
+    }
+
+    public String getLocalSyncPath() {
+        return localSyncPath;
+    }
+
+    public String getAgentType() {
+        return agentType;
     }
 
     public OffsetDateTime getCreateTime() {

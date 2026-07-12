@@ -25,7 +25,7 @@ public interface AiDevIntegrationUseCase {
 
     List<AiDevChatMessage> getChatMessages(String taskId);
 
-    AiDevTask createTask(String title, String description, String targetBranch, String relatedIssues, String constraints, String priority, java.util.List<String> affectedProjects, java.util.List<String> labels, java.util.List<String> relatedWorkspaces, String engineMode, java.util.List<String> assignedRoles);
+    AiDevTask createTask(String title, String description, String targetBranch, String relatedIssues, String constraints, String priority, java.util.List<String> affectedProjects, java.util.List<String> labels, java.util.List<String> relatedWorkspaces, String engineMode, java.util.List<String> assignedRoles, String status);
 
     void resumeTask(String id, String feedback);
 
@@ -42,6 +42,8 @@ public interface AiDevIntegrationUseCase {
      */
     void updateTaskConfig(String id, int maxBrainstormingRounds, int contextSlidingWindow);
 
+    void updateTaskAssignedRoles(String id, java.util.List<String> assignedRoles);
+
     void deleteTask(String id);
 
     void reopenTask(String id);
@@ -55,4 +57,12 @@ public interface AiDevIntegrationUseCase {
      * 订阅任务的 SSE 事件。
      */
     SseEmitter subscribe(String taskId);
+
+    /**
+     * 触发指定聊天消息推送到 GitHub 评论。
+     *
+     * @param taskId 任务 ID
+     * @param messageId 消息 ID
+     */
+    void triggerGithubSync(String taskId, String messageId);
 }

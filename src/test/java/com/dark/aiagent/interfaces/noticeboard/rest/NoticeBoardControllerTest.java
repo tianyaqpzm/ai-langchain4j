@@ -140,4 +140,32 @@ class NoticeBoardControllerTest {
 
         verify(noticeBoardService, times(1)).trackItemView(itemId);
     }
+
+    @Test
+    @DisplayName("PUT /rest/biz/v1/announcements/{id} -> updates announcement")
+    void shouldUpdateAnnouncement() throws Exception {
+        AnnouncementRequest request = new AnnouncementRequest();
+        request.setTitle("Updated Title");
+        request.setContent("Updated Content");
+        request.setStatus(com.dark.aiagent.domain.noticeboard.enums.AnnouncementStatus.PUBLISHED);
+
+        Announcement updated = Announcement.builder()
+                .id(1L)
+                .title("Updated Title")
+                .content("Updated Content")
+                .status(com.dark.aiagent.domain.noticeboard.enums.AnnouncementStatus.PUBLISHED)
+                .build();
+
+        when(noticeBoardService.updateAnnouncement(any(Long.class), any(Announcement.class))).thenReturn(updated);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/rest/biz/v1/announcements/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.title").value("Updated Title"))
+                .andExpect(jsonPath("$.status").value("PUBLISHED"));
+
+        verify(noticeBoardService, times(1)).updateAnnouncement(any(Long.class), any(Announcement.class));
+    }
 }

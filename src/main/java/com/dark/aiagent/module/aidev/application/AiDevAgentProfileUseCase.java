@@ -1,17 +1,20 @@
 package com.dark.aiagent.module.aidev.application;
 
-import com.dark.aiagent.module.aidev.domain.entity.AiDevAgentProfile;
-import com.dark.aiagent.module.aidev.domain.repository.AiDevAgentProfileRepository;
+import java.util.List;
+import java.util.Optional;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Optional;
+import com.dark.aiagent.module.aidev.domain.entity.AiDevAgentProfile;
+import com.dark.aiagent.module.aidev.domain.repository.AiDevAgentProfileRepository;
+import com.dark.aiagent.module.aidev.domain.repository.AiDevTaskRepository;
 
 @Service
 public class AiDevAgentProfileUseCase {
 
     private final AiDevAgentProfileRepository repository;
+    private final AiDevTaskRepository taskRepository;
 
     @org.springframework.beans.factory.annotation.Value("${ai-dev.integration.mode:ADAPTER}")
     private String integrationMode;
@@ -19,8 +22,36 @@ public class AiDevAgentProfileUseCase {
     @org.springframework.beans.factory.annotation.Value("${ai-dev.integration.native.kanban-db-path:${user.home}/.hermes/kanban.db}")
     private String kanbanDbPath;
 
-    public AiDevAgentProfileUseCase(AiDevAgentProfileRepository repository) {
+    private String getKanbanDbPath() {
+        String path = this.kanbanDbPath;
+        if (path == null || path.isBlank()) {
+            return path;
+        }
+        String userHome = System.getProperty("user.home");
+        String normalizedPath = path.replace("\\", "/");
+
+        String hermesPart = null;
+        if (normalizedPath.contains("/.hermes/")) {
+            hermesPart = normalizedPath.substring(normalizedPath.indexOf("/.hermes/"));
+        } else if (normalizedPath.contains(".hermes/")) {
+            hermesPart = "/" + normalizedPath.substring(normalizedPath.indexOf(".hermes/"));
+        }
+
+        if (hermesPart != null) {
+            java.io.File resolvedFile = new java.io.File(userHome, hermesPart);
+            return resolvedFile.getAbsolutePath();
+        }
+
+        if (normalizedPath.startsWith("~/")) {
+            java.io.File resolvedFile = new java.io.File(userHome, normalizedPath.substring(2));
+            return resolvedFile.getAbsolutePath();
+        }
+        return path;
+    }
+
+    public AiDevAgentProfileUseCase(AiDevAgentProfileRepository repository, AiDevTaskRepository taskRepository) {
         this.repository = repository;
+        this.taskRepository = taskRepository;
     }
 
     public List<AiDevAgentProfile> getAllProfiles() {
@@ -29,25 +60,60 @@ public class AiDevAgentProfileUseCase {
                 .collect(java.util.stream.Collectors.toList());
     }
 
-    @Transactional
-    public AiDevAgentProfile updateProfile(String roleName, String baseUrl, String apiToken, String modelName, String avatar, String systemPrompt) {
-        Optional<AiDevAgentProfile> optProfile = repository.findByRoleName(roleName);
-        if (optProfile.isEmpty()) {
-            throw new IllegalArgumentException("Profile not found for role: " + roleName);
+    public List<AiDevAgentProfile> getProfiles(String taskId) {
+        List<AiDevAgentProfile> all = getAllProfiles();
+        if (taskId == null || taskId.isBlank()) {
+            return all;
         }
-        
-        AiDevAgentProfile profile = optProfile.get();
-        profile.updateProfile(baseUrl, apiToken, modelName, avatar, systemPrompt);
+        return taskRepository.findById(taskId)
+                .map(task -> {
+                    java.util.List<String> assignedRoles = task.getAssignedRoles();
+                    if (assignedRoles == null || assignedRoles.isEmpty()) {
+                        return new java.util.ArrayList<AiDevAgentProfile>();
+                    }
+                    return all.stream()
+                            .filter(p -> assignedRoles.contains(p.getRoleName()))
+                            .collect(java.util.stream.Collectors.toList());
+                })
+                .orElse(all);
+    }
+
+    @Transactional
+    public AiDevAgentProfile updateProfile(String roleName, String baseUrl, String apiToken, String modelName,
+            String avatar, String systemPrompt, String localSyncPath, String agentType) {
+        Optional<AiDevAgentProfile> optProfile = repository.findByRoleName(roleName);
+        AiDevAgentProfile profile;
+        if (optProfile.isEmpty()) {
+            String id = java.util.UUID.randomUUID().toString();
+            java.time.OffsetDateTime now = java.time.OffsetDateTime.now();
+            profile = new AiDevAgentProfile(
+                    id,
+                    roleName,
+                    baseUrl,
+                    apiToken,
+                    modelName,
+                    avatar,
+                    systemPrompt,
+                    localSyncPath,
+                    agentType,
+                    now,
+                    now
+            );
+        } else {
+            profile = optProfile.get();
+            profile.updateProfile(baseUrl, apiToken, modelName, avatar, systemPrompt, localSyncPath, agentType);
+        }
         repository.save(profile);
 
         // NATIVE 轨道下，同步写入本地 yaml 配置文件 和 SOUL.md
-        syncProfileToLocal(roleName, baseUrl, apiToken, modelName, systemPrompt);
+        syncProfileToLocal(roleName, baseUrl, apiToken, modelName, systemPrompt, localSyncPath);
 
         return profile;
     }
 
     private String getProfileDirName(String roleName) {
-        if (roleName == null) return null;
+        if (roleName == null)
+            return null;
         switch (roleName.toUpperCase()) {
             case "PLANNER":
                 return "planner";
@@ -65,6 +131,30 @@ public class AiDevAgentProfileUseCase {
         }
     }
 
+    private String resolvePath(String path) {
+        if (path == null || path.isBlank()) {
+            return path;
+        }
+        String resolved = path.replace("\\", "/");
+        String userHome = System.getProperty("user.home");
+
+        if (resolved.contains("%LOCALAPPDATA%")) {
+            String localAppData = System.getenv("LOCALAPPDATA");
+            if (localAppData == null) {
+                localAppData = userHome + "/AppData/Local";
+            }
+            resolved = resolved.replace("%LOCALAPPDATA%", localAppData);
+        }
+
+        if (resolved.startsWith("~/")) {
+            resolved = userHome + "/" + resolved.substring(2);
+        } else if (resolved.equals("~")) {
+            resolved = userHome;
+        }
+
+        return resolved;
+    }
+
     @SuppressWarnings("unchecked")
     private AiDevAgentProfile syncProfileFromLocal(AiDevAgentProfile profile) {
         if (!"NATIVE".equalsIgnoreCase(integrationMode) && !"ADAPTER".equalsIgnoreCase(integrationMode)) {
@@ -72,23 +162,34 @@ public class AiDevAgentProfileUseCase {
         }
 
         try {
-            java.io.File hermesDir = new java.io.File(kanbanDbPath).getParentFile();
-            if (hermesDir == null || !hermesDir.exists()) {
-                return profile;
-            }
-            String profileDirName = getProfileDirName(profile.getRoleName());
-            if (profileDirName == null) return profile;
+            java.io.File profileDir;
+            if (profile.getLocalSyncPath() != null && !profile.getLocalSyncPath().isBlank()) {
+                profileDir = new java.io.File(resolvePath(profile.getLocalSyncPath()));
+            } else {
+                java.io.File hermesDir = new java.io.File(getKanbanDbPath()).getParentFile();
+                if (hermesDir == null || !hermesDir.exists()) {
+                    return profile;
+                }
+                String profileDirName = getProfileDirName(profile.getRoleName());
+                if (profileDirName == null)
+                    return profile;
 
-            java.io.File profileDir = new java.io.File(new java.io.File(hermesDir, "profiles"), profileDirName);
+                profileDir = new java.io.File(new java.io.File(hermesDir, "profiles"), profileDirName);
+            }
+
             java.io.File configFile = new java.io.File(profileDir, "config.yaml");
             java.io.File soulFile = new java.io.File(profileDir, "SOUL.md");
 
             if (!configFile.exists()) {
-                configFile = new java.io.File(hermesDir, "config.yaml");
+                java.io.File hermesDir = new java.io.File(getKanbanDbPath()).getParentFile();
+                if (hermesDir != null && hermesDir.exists()) {
+                    configFile = new java.io.File(hermesDir, "config.yaml");
+                }
             }
             if (!configFile.exists() && !soulFile.exists()) {
                 if ("ADAPTER".equalsIgnoreCase(integrationMode)) {
-                    syncProfileToLocal(profile.getRoleName(), profile.getBaseUrl(), profile.getApiToken(), profile.getModelName(), profile.getSystemPrompt());
+                    syncProfileToLocal(profile.getRoleName(), profile.getBaseUrl(), profile.getApiToken(),
+                            profile.getModelName(), profile.getSystemPrompt(), profile.getLocalSyncPath());
                 }
                 return profile;
             }
@@ -109,9 +210,11 @@ public class AiDevAgentProfileUseCase {
                         finalModelName = (String) modelMap.getOrDefault("default", finalModelName);
                         finalBaseUrl = (String) modelMap.getOrDefault("base_url", finalBaseUrl);
                         String provider = (String) modelMap.get("provider");
-                        java.util.Map<String, Object> providersMap = (java.util.Map<String, Object>) configMap.get("providers");
+                        java.util.Map<String, Object> providersMap = (java.util.Map<String, Object>) configMap
+                                .get("providers");
                         if (providersMap != null && provider != null) {
-                            java.util.Map<String, Object> specificProviderMap = (java.util.Map<String, Object>) providersMap.get(provider);
+                            java.util.Map<String, Object> specificProviderMap = (java.util.Map<String, Object>) providersMap
+                                    .get(provider);
                             if (specificProviderMap != null && specificProviderMap.get("api_key") != null) {
                                 finalApiToken = (String) specificProviderMap.get("api_key");
                             }
@@ -122,22 +225,25 @@ public class AiDevAgentProfileUseCase {
 
             // 读取同目录下的 SOUL.md 作为 systemPrompt
             String soulContent = readSoulMd(profileDir);
-            String finalSystemPrompt = (soulContent != null && !soulContent.isBlank()) ? soulContent : profile.getSystemPrompt();
+            String finalSystemPrompt = (soulContent != null && !soulContent.isBlank()) ? soulContent
+                    : profile.getSystemPrompt();
 
             // 如果本地文件有更新，同步到数据库
             boolean isModified = !java.util.Objects.equals(finalModelName, profile.getModelName()) ||
-                                 !java.util.Objects.equals(finalBaseUrl, profile.getBaseUrl()) ||
-                                 !java.util.Objects.equals(finalApiToken, profile.getApiToken()) ||
-                                 !java.util.Objects.equals(finalSystemPrompt, profile.getSystemPrompt());
+                    !java.util.Objects.equals(finalBaseUrl, profile.getBaseUrl()) ||
+                    !java.util.Objects.equals(finalApiToken, profile.getApiToken()) ||
+                    !java.util.Objects.equals(finalSystemPrompt, profile.getSystemPrompt());
 
             if (isModified) {
-                profile.updateProfile(finalBaseUrl, finalApiToken, finalModelName, profile.getAvatar(), finalSystemPrompt);
+                profile.updateProfile(finalBaseUrl, finalApiToken, finalModelName, profile.getAvatar(),
+                        finalSystemPrompt, profile.getLocalSyncPath(), profile.getAgentType());
                 repository.save(profile);
             }
 
             // 确保本地文件完整存在
             if ("ADAPTER".equalsIgnoreCase(integrationMode)) {
-                syncProfileToLocal(profile.getRoleName(), profile.getBaseUrl(), profile.getApiToken(), profile.getModelName(), profile.getSystemPrompt());
+                syncProfileToLocal(profile.getRoleName(), profile.getBaseUrl(), profile.getApiToken(),
+                        profile.getModelName(), profile.getSystemPrompt(), profile.getLocalSyncPath());
             }
 
         } catch (Exception e) {
@@ -148,11 +254,14 @@ public class AiDevAgentProfileUseCase {
 
     /** 读取 profile 目录下的 SOUL.md 内容，不存在则返回 null */
     private String readSoulMd(java.io.File profileDir) {
-        if (profileDir == null) return null;
+        if (profileDir == null)
+            return null;
         java.io.File soulFile = new java.io.File(profileDir, "SOUL.md");
-        if (!soulFile.exists()) return null;
+        if (!soulFile.exists())
+            return null;
         try {
-            return new String(java.nio.file.Files.readAllBytes(soulFile.toPath()), java.nio.charset.StandardCharsets.UTF_8);
+            return new String(java.nio.file.Files.readAllBytes(soulFile.toPath()),
+                    java.nio.charset.StandardCharsets.UTF_8);
         } catch (Exception e) {
             e.printStackTrace();
             return null;
@@ -160,19 +269,30 @@ public class AiDevAgentProfileUseCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void syncProfileToLocal(String roleName, String baseUrl, String apiToken, String modelName, String systemPrompt) {
+    private void syncProfileToLocal(String roleName, String baseUrl, String apiToken, String modelName,
+            String systemPrompt, String localSyncPath) {
         if (!"NATIVE".equalsIgnoreCase(integrationMode) && !"ADAPTER".equalsIgnoreCase(integrationMode)) {
             return;
         }
         try {
-            java.io.File hermesDir = new java.io.File(kanbanDbPath).getParentFile();
-            if (hermesDir == null || !hermesDir.exists()) {
-                return;
-            }
-            String profileDirName = getProfileDirName(roleName);
-            if (profileDirName == null) return;
+            java.io.File profileDir;
+            if (localSyncPath != null && !localSyncPath.isBlank()) {
+                profileDir = new java.io.File(resolvePath(localSyncPath));
+            } else {
+                java.io.File hermesDir = new java.io.File(getKanbanDbPath()).getParentFile();
+                if (hermesDir == null) {
+                    return;
+                }
+                if (!hermesDir.exists()) {
+                    hermesDir.mkdirs();
+                }
+                String profileDirName = getProfileDirName(roleName);
+                if (profileDirName == null)
+                    return;
 
-            java.io.File profileDir = new java.io.File(new java.io.File(hermesDir, "profiles"), profileDirName);
+                profileDir = new java.io.File(new java.io.File(hermesDir, "profiles"), profileDirName);
+            }
+
             if (!profileDir.exists()) {
                 profileDir.mkdirs();
             }
@@ -215,7 +335,8 @@ public class AiDevAgentProfileUseCase {
                 providersMap = new java.util.HashMap<>();
                 configMap.put("providers", providersMap);
             }
-            java.util.Map<String, Object> specificProviderMap = (java.util.Map<String, Object>) providersMap.get(provider);
+            java.util.Map<String, Object> specificProviderMap = (java.util.Map<String, Object>) providersMap
+                    .get(provider);
             if (specificProviderMap == null) {
                 specificProviderMap = new java.util.HashMap<>();
                 providersMap.put(provider, specificProviderMap);

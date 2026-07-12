@@ -34,6 +34,7 @@ public class AiDevTaskController {
      */
     @PostMapping
     public ResponseEntity<AiDevTaskResponse> createTask(@RequestBody AiDevCreateRequest request) {
+        String initialStatus = Boolean.TRUE.equals(request.importFromGithub()) ? "IMPORT_REQUESTED" : "PENDING";
         AiDevTask task = useCase.createTask(
                 request.title(),
                 request.description(),
@@ -45,7 +46,8 @@ public class AiDevTaskController {
                 request.labels(),
                 request.affectedProjects(), // map affectedProjects to relatedWorkspaces as well just in case
                 request.engineMode(),
-                request.assignedRoles()
+                request.assignedRoles(),
+                initialStatus
         );
         return ResponseEntity.ok(toResponse(task));
     }
@@ -80,6 +82,17 @@ public class AiDevTaskController {
         return ResponseEntity.ok().build();
     }
 
+    /**
+     * 更新任务关联的 AI 角色分配列表。
+     */
+    @PutMapping("/{id}/assigned-roles")
+    public ResponseEntity<Void> updateTaskAssignedRoles(
+            @PathVariable String id,
+            @RequestBody List<String> assignedRoles) {
+        useCase.updateTaskAssignedRoles(id, assignedRoles);
+        return ResponseEntity.ok().build();
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTask(@PathVariable String id) {
         useCase.deleteTask(id);
@@ -95,7 +108,9 @@ public class AiDevTaskController {
                         msg.getSenderRole(),
                         msg.getContent(),
                         msg.getCreateTime(),
-                        msg.getIsProcessed()
+                        msg.getIsProcessed(),
+                        msg.getGithubSyncStatus(),
+                        msg.getGithubSyncError()
                 ))
                 .collect(Collectors.toList());
         return ResponseEntity.ok(responses);
@@ -121,8 +136,21 @@ public class AiDevTaskController {
                 msg.getSenderRole(),
                 msg.getContent(),
                 msg.getCreateTime(),
-                msg.getIsProcessed()
+                msg.getIsProcessed(),
+                msg.getGithubSyncStatus(),
+                msg.getGithubSyncError()
         ));
+    }
+
+    /**
+     * 触发将指定的 AI/开发人员发言推送到关联的 GitHub Issue 评论区。
+     */
+    @PostMapping("/{id}/messages/{messageId}/push-github")
+    public ResponseEntity<Void> pushMessageToGithub(
+            @PathVariable String id,
+            @PathVariable String messageId) {
+        useCase.triggerGithubSync(id, messageId);
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/callback")

@@ -15,6 +15,10 @@ public class AiDevChatMessagePO {
     private String content;
     private OffsetDateTime createTime;
     private Boolean isProcessed;
+    /** GitHub 同步状态 */
+    private String githubSyncStatus;
+    /** GitHub 同步失败的具体错误信息 */
+    private String githubSyncError;
 
     public String getId() {
         return id;
@@ -62,5 +66,21 @@ public class AiDevChatMessagePO {
 
     public void setIsProcessed(Boolean isProcessed) {
         this.isProcessed = isProcessed;
+    }
+
+    public String getGithubSyncStatus() {
+        return githubSyncStatus;
+    }
+
+    public void setGithubSyncStatus(String githubSyncStatus) {
+        this.githubSyncStatus = githubSyncStatus;
+    }
+
+    public String getGithubSyncError() {
+        return githubSyncError;
+    }
+
+    public void setGithubSyncError(String githubSyncError) {
+        this.githubSyncError = githubSyncError;
     }
 }

@@ -1,6 +1,8 @@
 package com.dark.aiagent.module.aidev.application;
 
 import com.dark.aiagent.module.aidev.domain.entity.AiDevAgentProfile;
+import com.dark.aiagent.module.aidev.domain.repository.AiDevTaskRepository;
+import com.dark.aiagent.module.aidev.domain.entity.AiDevTask;
 import com.dark.aiagent.module.aidev.domain.repository.AiDevAgentProfileRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,6 +21,7 @@ import static org.mockito.Mockito.*;
 class AiDevAgentProfileUseCaseTest {
 
     private AiDevAgentProfileRepository repository;
+    private AiDevTaskRepository taskRepository;
     private AiDevAgentProfileUseCase useCase;
 
     @TempDir
@@ -27,7 +30,8 @@ class AiDevAgentProfileUseCaseTest {
     @BeforeEach
     void setUp() {
         repository = mock(AiDevAgentProfileRepository.class);
-        useCase = new AiDevAgentProfileUseCase(repository);
+        taskRepository = mock(AiDevTaskRepository.class);
+        useCase = new AiDevAgentProfileUseCase(repository, taskRepository);
     }
 
     @Test
@@ -68,11 +72,11 @@ class AiDevAgentProfileUseCaseTest {
 
         // 3. Mock 数据库返回
         AiDevAgentProfile plannerProfile = new AiDevAgentProfile(
-                "node-plan", "PLANNER", null, null, null, "psychology", "Prompt", 
+                "node-plan", "PLANNER", null, null, null, "psychology", "Prompt", null, "Hermes Agent",
                 OffsetDateTime.now(), OffsetDateTime.now()
         );
         AiDevAgentProfile generatorProfile = new AiDevAgentProfile(
-                "node-gen", "GENERATOR", null, null, null, "code", "Prompt", 
+                "node-gen", "GENERATOR", null, null, null, "code", "Prompt", null, "Hermes Agent",
                 OffsetDateTime.now(), OffsetDateTime.now()
         );
         when(repository.findAll()).thenReturn(List.of(plannerProfile, generatorProfile));
@@ -124,7 +128,7 @@ class AiDevAgentProfileUseCaseTest {
 
         // 3. Mock 数据库返回（包含已存在的不为空的 seed 默认值）
         AiDevAgentProfile plannerProfile = new AiDevAgentProfile(
-                "node-plan", "PLANNER", "http://old.api/v1", "sk-old-key", "claude-3-5-sonnet-20240620", "psychology", "Prompt", 
+                "node-plan", "PLANNER", "http://old.api/v1", "sk-old-key", "claude-3-5-sonnet-20240620", "psychology", "Prompt", null, "Hermes Agent",
                 OffsetDateTime.now(), OffsetDateTime.now()
         );
         when(repository.findAll()).thenReturn(List.of(plannerProfile));
@@ -151,14 +155,14 @@ class AiDevAgentProfileUseCaseTest {
         injectField(useCase, "kanbanDbPath", kanbanDbFile.getAbsolutePath());
 
         AiDevAgentProfile plannerProfile = new AiDevAgentProfile(
-                "node-plan", "PLANNER", null, null, null, "psychology", "Prompt", 
+                "node-plan", "PLANNER", null, null, null, "psychology", "Prompt", null, "Hermes Agent",
                 OffsetDateTime.now(), OffsetDateTime.now()
         );
         when(repository.findByRoleName("PLANNER")).thenReturn(Optional.of(plannerProfile));
         doNothing().when(repository).save(any());
 
         // 执行修改
-        useCase.updateProfile("PLANNER", "http://new.api/v1", "sk-new-key", "gpt-4o", "psychology", "New Prompt");
+        useCase.updateProfile("PLANNER", "http://new.api/v1", "sk-new-key", "gpt-4o", "psychology", "New Prompt", null, "Hermes Agent");
 
         // 验证数据库被保存
         verify(repository, times(1)).save(plannerProfile);
@@ -193,14 +197,14 @@ class AiDevAgentProfileUseCaseTest {
         injectField(useCase, "kanbanDbPath", kanbanDbFile.getAbsolutePath());
 
         AiDevAgentProfile plannerProfile = new AiDevAgentProfile(
-                "node-plan", "PLANNER", null, null, null, "psychology", "Prompt", 
+                "node-plan", "PLANNER", null, null, null, "psychology", "Prompt", null, "Hermes Agent",
                 OffsetDateTime.now(), OffsetDateTime.now()
         );
         when(repository.findByRoleName("PLANNER")).thenReturn(Optional.of(plannerProfile));
         doNothing().when(repository).save(any());
 
         // 执行修改
-        useCase.updateProfile("PLANNER", "http://new.api/v1", "sk-new-key", "gpt-4o", "psychology", "New Prompt");
+        useCase.updateProfile("PLANNER", "http://new.api/v1", "sk-new-key", "gpt-4o", "psychology", "New Prompt", null, "Hermes Agent");
 
         // 验证数据库被保存
         verify(repository, times(1)).save(plannerProfile);
@@ -241,7 +245,7 @@ class AiDevAgentProfileUseCaseTest {
         injectField(useCase, "kanbanDbPath", kanbanDbFile.getAbsolutePath());
 
         AiDevAgentProfile plannerProfile = new AiDevAgentProfile(
-                "node-plan", "PLANNER", "http://db.api/v1", "sk-db-key", "gpt-4o", "psychology", "DB Prompt", 
+                "node-plan", "PLANNER", "http://db.api/v1", "sk-db-key", "gpt-4o", "psychology", "DB Prompt", null, "Hermes Agent",
                 OffsetDateTime.now(), OffsetDateTime.now()
         );
         when(repository.findAll()).thenReturn(List.of(plannerProfile));
@@ -269,6 +273,41 @@ class AiDevAgentProfileUseCaseTest {
         assertTrue(soulFile.exists());
         String soulContent = new String(java.nio.file.Files.readAllBytes(soulFile.toPath()), java.nio.charset.StandardCharsets.UTF_8);
         assertEquals("DB Prompt", soulContent);
+    }
+
+    @Test
+    void shouldFilterProfilesBasedOnTaskAssignedRoles() {
+        // 1. Mock 4个数据库 Profile 元数据
+        AiDevAgentProfile fsa = new AiDevAgentProfile("fsa", "FSA", null, null, null, null, null, null, "Hermes Agent", null, null);
+        AiDevAgentProfile planner = new AiDevAgentProfile("plan", "PLANNER", null, null, null, null, null, null, "Hermes Agent", null, null);
+        AiDevAgentProfile generator = new AiDevAgentProfile("gen", "GENERATOR", null, null, null, null, null, null, "Hermes Agent", null, null);
+        AiDevAgentProfile evaluator = new AiDevAgentProfile("eval", "EVALUATOR", null, null, null, null, null, null, "Hermes Agent", null, null);
+        when(repository.findAll()).thenReturn(List.of(fsa, planner, generator, evaluator));
+
+        // 2. Mock 任务关联仅包含 FSA 的 assignedRoles
+        AiDevTask task1 = mock(AiDevTask.class);
+        when(task1.getAssignedRoles()).thenReturn(List.of("FSA"));
+        when(taskRepository.findById("task-1")).thenReturn(Optional.of(task1));
+
+        // 3. Mock 任务关联包含多个角色的 assignedRoles
+        AiDevTask task2 = mock(AiDevTask.class);
+        when(task2.getAssignedRoles()).thenReturn(List.of("PLANNER", "GENERATOR"));
+        when(taskRepository.findById("task-2")).thenReturn(Optional.of(task2));
+
+        // 验证 taskId 缺失时返回全量
+        List<AiDevAgentProfile> resAll = useCase.getProfiles(null);
+        assertEquals(4, resAll.size());
+
+        // 验证 task-1 仅返回 FSA
+        List<AiDevAgentProfile> res1 = useCase.getProfiles("task-1");
+        assertEquals(1, res1.size());
+        assertEquals("FSA", res1.get(0).getRoleName());
+
+        // 验证 task-2 返回 PLANNER 和 GENERATOR
+        List<AiDevAgentProfile> res2 = useCase.getProfiles("task-2");
+        assertEquals(2, res2.size());
+        assertTrue(res2.stream().anyMatch(p -> p.getRoleName().equals("PLANNER")));
+        assertTrue(res2.stream().anyMatch(p -> p.getRoleName().equals("GENERATOR")));
     }
 
     private void injectField(Object target, String fieldName, Object value) throws Exception {

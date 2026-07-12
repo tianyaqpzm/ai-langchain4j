@@ -8,5 +8,7 @@ public record AiDevChatMessageResponse(
         String senderRole,
         String content,
         OffsetDateTime createTime,
-        Boolean isProcessed
+        Boolean isProcessed,
+        String githubSyncStatus,
+        String githubSyncError
 ) {}

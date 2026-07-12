@@ -19,8 +19,9 @@ public class AiDevAgentProfileController {
     }
 
     @GetMapping
-    public ResponseEntity<List<AiDevAgentProfileDTO>> listProfiles() {
-        List<AiDevAgentProfileDTO> responses = useCase.getAllProfiles().stream()
+    public ResponseEntity<List<AiDevAgentProfileDTO>> listProfiles(
+            @RequestParam(value = "taskId", required = false) String taskId) {
+        List<AiDevAgentProfileDTO> responses = useCase.getProfiles(taskId).stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(responses);
@@ -36,7 +37,9 @@ public class AiDevAgentProfileController {
                 request.apiToken(),
                 request.modelName(),
                 request.avatar(),
-                request.systemPrompt()
+                request.systemPrompt(),
+                request.localSyncPath(),
+                request.agentType()
         );
         return ResponseEntity.ok(toDTO(profile));
     }
@@ -49,7 +52,9 @@ public class AiDevAgentProfileController {
                 profile.getApiToken(),
                 profile.getModelName(),
                 profile.getAvatar(),
-                profile.getSystemPrompt()
+                profile.getSystemPrompt(),
+                profile.getLocalSyncPath(),
+                profile.getAgentType()
         );
     }
 }

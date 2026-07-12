@@ -94,7 +94,7 @@ langchain4j:
     dashscope:
       chat-model:
         # 参考文档: https://bailian.console.aliyun.com/?productCode=p_efm&tab=model#/model-market/detail/qwen3?modelGroup=qwen3
-        api-key: ${DASH_SCOPE_API_KEY}
+        api-key: ${DASH_SCOPE_API_KEY:3a5***********************928}
         # 有效期至 2025-10-26 (tianyaqpzm)
         model-name: ${CHAT_MODEL_NAME:qwen-plus-2025-04-28}
 

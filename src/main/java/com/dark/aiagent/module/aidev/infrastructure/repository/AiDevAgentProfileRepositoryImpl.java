@@ -54,6 +54,8 @@ public class AiDevAgentProfileRepositoryImpl implements AiDevAgentProfileReposit
                 po.getModelName(),
                 po.getAvatar(),
                 po.getSystemPrompt(),
+                po.getLocalSyncPath(),
+                po.getAgentType(),
                 po.getCreateTime(),
                 po.getUpdateTime()
         );
@@ -68,6 +70,8 @@ public class AiDevAgentProfileRepositoryImpl implements AiDevAgentProfileReposit
         po.setModelName(domain.getModelName());
         po.setAvatar(domain.getAvatar());
         po.setSystemPrompt(domain.getSystemPrompt());
+        po.setLocalSyncPath(domain.getLocalSyncPath());
+        po.setAgentType(domain.getAgentType());
         po.setCreateTime(domain.getCreateTime());
         po.setUpdateTime(domain.getUpdateTime());
         return po;

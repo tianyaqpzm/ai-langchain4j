@@ -18,5 +18,6 @@ public record AiDevCreateRequest(
     java.util.List<String> affectedProjects,
     java.util.List<String> labels,
     String engineMode,
-    java.util.List<String> assignedRoles
+    java.util.List<String> assignedRoles,
+    Boolean importFromGithub
 ) {}

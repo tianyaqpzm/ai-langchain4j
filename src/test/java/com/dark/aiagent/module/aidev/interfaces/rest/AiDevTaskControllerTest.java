@@ -87,4 +87,17 @@ class AiDevTaskControllerTest {
 
         verify(aiDevTaskUseCase, times(1)).reopenTask("task-123");
     }
+
+    @Test
+    void shouldUpdateTaskAssignedRoles() throws Exception {
+        List<String> roles = List.of("PLANNER", "GENERATOR");
+        doNothing().when(aiDevTaskUseCase).updateTaskAssignedRoles("task-123", roles);
+
+        mockMvc.perform(put("/rest/biz/v1/ai-dev/tasks/task-123/assigned-roles")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[\"PLANNER\",\"GENERATOR\"]"))
+                .andExpect(status().isOk());
+
+        verify(aiDevTaskUseCase, times(1)).updateTaskAssignedRoles("task-123", roles);
+    }
 }

@@ -29,8 +29,35 @@ public class NativeAiDevIntegrationServiceImpl implements AiDevIntegrationUseCas
     @Value("${ai-dev.integration.native.kanban-db-path:${user.home}/.hermes/kanban.db}")
     private String kanbanDbPath;
 
+    private String getKanbanDbPath() {
+        String path = this.kanbanDbPath;
+        if (path == null || path.isBlank()) {
+            return path;
+        }
+        String userHome = System.getProperty("user.home");
+        String normalizedPath = path.replace("\\", "/");
+        
+        String hermesPart = null;
+        if (normalizedPath.contains("/.hermes/")) {
+            hermesPart = normalizedPath.substring(normalizedPath.indexOf("/.hermes/"));
+        } else if (normalizedPath.contains(".hermes/")) {
+            hermesPart = "/" + normalizedPath.substring(normalizedPath.indexOf(".hermes/"));
+        }
+        
+        if (hermesPart != null) {
+            java.io.File resolvedFile = new java.io.File(userHome, hermesPart);
+            return resolvedFile.getAbsolutePath();
+        }
+        
+        if (normalizedPath.startsWith("~/")) {
+            java.io.File resolvedFile = new java.io.File(userHome, normalizedPath.substring(2));
+            return resolvedFile.getAbsolutePath();
+        }
+        return path;
+    }
+
     private String getDbUrl() {
-        return "jdbc:sqlite:" + kanbanDbPath;
+        return "jdbc:sqlite:" + getKanbanDbPath();
     }
 
     private OffsetDateTime toOffsetDateTime(long epochSeconds) {
@@ -139,22 +166,26 @@ public class NativeAiDevIntegrationServiceImpl implements AiDevIntegrationUseCas
     }
 
     @Override
-    public AiDevTask createTask(String title, String description, String targetBranch, String relatedIssues, String constraints, String priority, java.util.List<String> affectedProjects, java.util.List<String> labels, java.util.List<String> relatedWorkspaces, String engineMode, java.util.List<String> assignedRoles) {
+    public AiDevTask createTask(String title, String description, String targetBranch, String relatedIssues, String constraints, String priority, java.util.List<String> affectedProjects, java.util.List<String> labels, java.util.List<String> relatedWorkspaces, String engineMode, java.util.List<String> assignedRoles, String status) {
         String id = UUID.randomUUID().toString();
         String finalTitle = title != null && !title.isBlank() ? title : (description.length() > 50 ? description.substring(0, 50) + "..." : description);
         long now = Instant.now().getEpochSecond();
+        String initialSqliteStatus = "triage";
+        if ("IMPORT_REQUESTED".equals(status)) {
+            initialSqliteStatus = "triage"; // 在 SQLite 中使用 triage 对应初始导入
+        }
         try (Connection conn = DriverManager.getConnection(getDbUrl());
              PreparedStatement pstmt = conn.prepareStatement("INSERT INTO tasks (id, title, body, status, created_at, consecutive_failures, goal_mode) VALUES (?, ?, ?, ?, ?, 0, 0)")) {
             pstmt.setString(1, id);
             pstmt.setString(2, finalTitle);
             pstmt.setString(3, description);
-            pstmt.setString(4, "triage");
+            pstmt.setString(4, initialSqliteStatus);
             pstmt.setLong(5, now);
             pstmt.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        return new AiDevTask(id, finalTitle, description, "TRIAGE", null, 0.0, null, toOffsetDateTime(now), toOffsetDateTime(now), 5, 3, relatedWorkspaces, targetBranch, relatedIssues, constraints, priority, affectedProjects, labels, engineMode != null ? engineMode : "HERMES_SINGLE", assignedRoles != null ? assignedRoles : new java.util.ArrayList<>());
+        return new AiDevTask(id, finalTitle, description, status != null ? status : "PENDING", null, 0.0, null, toOffsetDateTime(now), toOffsetDateTime(now), 5, 3, relatedWorkspaces, targetBranch, relatedIssues, constraints, priority, affectedProjects, labels, engineMode != null ? engineMode : "HERMES_SINGLE", assignedRoles != null ? assignedRoles : new java.util.ArrayList<>());
     }
 
     @Override
@@ -223,6 +254,11 @@ public class NativeAiDevIntegrationServiceImpl implements AiDevIntegrationUseCas
         }
     }
 
+    @Override
+    public void triggerGithubSync(String taskId, String messageId) {
+        System.out.println("[NativeSync] Trigger github sync on message: " + messageId);
+    }
+
     /**
      * 更新任务的头脑风暴配置参数（写入 SQLite）。
      * 在写入前调用自愈逻辑，确保列存在。
@@ -241,6 +277,11 @@ public class NativeAiDevIntegrationServiceImpl implements AiDevIntegrationUseCas
         } catch (SQLException e) {
             e.printStackTrace();
         }
+    }
+
+    @Override
+    public void updateTaskAssignedRoles(String id, List<String> assignedRoles) {
+        // NATIVE 轨道使用 Hermes Kanban 纯文本/SQLite，tasks 表无此列，执行空操作即可
     }
 
     /**
